@@ -253,7 +253,7 @@ INSERT INTO 表名(列1, 列2, ...) 副問い合わせ文
 UPDATE 表名 SET 列名1 = 値1, 列名2 = 値2, ... WHERE 条件式;
 ```
 
-#### 副問い合わせの利用
+#### 副問い合わせを利用した変更
 
 ```sql
 UPDATE 表名 SET 列名 = (副問い合わせ文) 
@@ -268,45 +268,27 @@ UPDATE 表名 SET 列名 = (副問い合わせ文)
 DELETE FROM 表名 WHERE 条件式;
 ```
 
-#### 副問い合わせの利用
+#### 副問い合わせを利用した削除
 
 ```sql
 DELETE FROM 表名 WHERE 列名 = (副問い合わせ文);
 ```
 
-## トランザクション
-
-### COMMIT文
-
-```sql
-COMMIT;
-```
-
-### ROLLBACK文
-
-```sql
-# トランザクション開始からのすべての更新をキャンセル
-ROLLBACK;
-
-# トランザクションの途中のセーブポイント以降の更新をキャンセル
-ROLLBACK TO セーブポイント名;
-```
-
-### SAVEPOINT文
-
-```sql
-SAVEPOINT セーブポイント名
-```
-
 ## データ定義文（DDL）
 
-### 表の作成
+### 表
+
+#### 表の作成
 
 ```sql
+# 列の情報を指定する
 CREATE TABLE 表名 (
     列名1 データ型1 属性1 属性2 ... 
     [, 列名2 データ型2 属性 ...]
 );
+
+# 副問い合わせを利用する
+CREATE TABLE 表名 AS 副問い合わせ文;
 ```
 
 |データ型|意味|値の範囲|
@@ -324,7 +306,47 @@ CREATE TABLE 表名 (
 |NOT NULL|NULL値を許さない|
 |UNIQUE|一意の値を入れる必要がある|
 |PRIMARY KEY|表の主キー|
+|REFERENCES 表名(列名)|表の外部キー|
 |DEFAULT デフォルト値|デフォルト値の指定|
+
+#### 表の変更
+
+##### 列の構成変更
+
+```sql
+# 列の追加
+ALTER TABLE 表名 ADD 列名 データ型;
+
+# 列の削除
+ALTER TABLE 表名 DROP 列名;
+```
+
+##### 列の属性変更
+
+```sql
+# PRIMARY KEY の追加
+ALTER TABLE 表名 ADD PRIMARY KEY (列名);
+
+# PRIMARY KEY の削除
+ALTER TABLE 表名 DROP CONSTRAINT 主キー名;
+
+
+# NOT NULL の追加
+ALTER TABLE 表名 ALTER 列名 SET NOT NULL;
+
+# NOT NULL の削除
+ALTER TABLE 表名 ALTER 列名 DROP NOT NULL;
+
+
+# データ型の変更
+ALTER TABLE 表名 ALTER 列名 TYPE データ型;
+```
+
+#### 表の削除
+
+```sql
+DROP TABLE 表名;
+```
 
 ### シーケンス
 
@@ -348,11 +370,218 @@ NEXTVAL('シーケンス名')
 CURRVAL('シーケンス名')
 
 # シーケンス番号の現在値に指定した値を設定する
-SETVAL('シーケンス名')
+SETVAL('シーケンス名', 値)
 ```
 
 #### シーケンスの削除
 
 ```sql
 DROP SEQUENCE シーケンス名;
+```
+
+### ビュー
+
+#### ビューの作成
+
+```sql
+CREATE VIEW ビュー名 (列名, ...) AS 副問い合わせ文
+```
+
+#### ビューの検索
+
+```sql
+SELECT 列名, ... FROM ビュー名 WHERE 条件式;
+```
+
+#### ビューの変更
+
+##### データの追加
+
+```sql
+# すべての列の値を指定
+INSERT INTO ビュー名 VALUES(値1, ...);
+
+# 特定の列の値を指定
+INSERT INTO ビュー名 (列名1, ...) VALUES(値1, ...);
+```
+
+- ビューからのデータ追加の制限
+
+```sql
+CREATE VIEW ビュー名 AS 副問い合わせ文 WITH CHECK OPTION;
+```
+
+#### ビューの削除
+
+```sql
+DROP VIEW ビュー名;
+```
+
+#### ビューの定義確認
+
+```sql
+SELECT definition FROM pg_views 
+    WHERE viewname = 'ビュー名';
+```
+
+### インデックス
+
+#### インデックスの作成
+
+```sql
+CREATE INDEX インデックス名 ON 表名 (列名, ...);
+```
+
+#### インデックスの削除
+
+```sql
+DROP INDEX インデックス名;
+```
+
+- 大規模ダミーデータの作成方法
+
+```sql
+# STEP1: 基になる表の作成
+CREATE TABLE base (
+    id SERIAL PRIMARY KEY, 
+    val INT NOT NULL DEFAULT 0
+);
+
+# STEP2: 基になるデータの作成
+INSERT INTO base (val) 
+    VALUES 
+        (1), 
+        (2), 
+        (3), 
+        (4), 
+        (5), 
+        (6), 
+        (7), 
+        (8), 
+        (9), 
+        (10);
+
+# STEP3: ダミーデータ用の表を作成
+CREATE TABLE sample (
+    id SERIAL PRIMARY KEY,
+    name TEXT
+);
+
+# STEP4: ダミーデータの作成（100万件）
+INSERT INTO sample(name) 
+    SELECT 'name' || NEXTVAL('sample_id_seq') 
+    FROM 
+        base b1, 
+        base b2, 
+        base b3, 
+        base b4, 
+        base b5, 
+        base b6;
+```
+
+### ロール（ユーザ）
+
+#### ロールの作成
+
+```sql
+CREATE ROLE|USER ロール名 [[WITH] 属性 [...]];
+```
+
+#### ロールの変更
+
+```sql
+ALTER ROLE ロール名 [[WITH] 属性 [...]];
+```
+
+#### ロールの削除
+
+```sql
+DROP ROLE|USER ロール名[, ...];
+```
+
+|属性|意味|
+|:--|:--|
+|LOGIN / NOLOGIN|ログイン権限の有無|
+|SUPERUSER / NOSUPERUSER|管理ユーザ権限の有無|
+|CREATEDB / NOCREATEDB|データベース作成権限の有無|
+|CREATEROLE / NOCREATEROLE|ロール作成権限の有無|
+|[ENCRYPTED] PASSWORD 'パスワード'|ユーザのパスワードの設定（ENCRYPTEDを指定すると暗号化される）|
+
+## データ制御言語（DDL）
+
+### COMMIT文
+
+```sql
+COMMIT;
+```
+
+### ROLLBACK文
+
+```sql
+# トランザクション開始からのすべての更新をキャンセル
+ROLLBACK;
+
+# トランザクションの途中のセーブポイント以降の更新をキャンセル
+ROLLBACK TO セーブポイント名;
+```
+
+### SAVEPOINT文
+
+```sql
+SAVEPOINT セーブポイント名
+```
+
+### GRANT文
+
+#### 特定のデータベースへのアクセス権限の付与
+
+```sql
+GRANT 権限 ON DATABASE データベース名 TO ロール名;
+```
+
+|権限|意味|
+|:--|:--|
+|CONNECT|データベースに接続が可能|
+|CREATE|データベース内にスキーマを作成可能|
+
+#### 特定のテーブルへのアクセス権限の付与
+
+```sql
+GRANT 権限 ON テーブル名 TO ロール名;
+```
+
+|権限|意味|
+|:--|:--|
+|SELECT / INSERT / UPDATE / DELETE / TRUNCATE|SQL文を実行可能 ＆ 列単位で指定可能|
+|REFERENCE|外部キーで参照可能|
+
+#### 特定のスキーマへのアクセス権限の付与
+
+```sql
+GRANT 権限 ON スキーマ名 TO ロール名
+```
+
+|権限|意味|
+|:--|:--|
+|USAGE|スキーマ内のオブジェクトへのアクセスが可能|
+|CREATE|スキーマ内のオブジェクトを作成可能|
+
+### REVOKE文
+
+#### 特定のデータベースへのアクセス権限の削除
+
+```sql
+REVOKE 権限 ON DATABASE データベース名 FROM ロール名;
+```
+
+#### 特定のテーブルへのアクセス権限の削除
+
+```sql
+REVOKE 権限 ON テーブル名 FROM ロール名;
+```
+
+#### 特定のスキーマへのアクセス権限の削除
+
+```sql
+REVOKE 権限 ON スキーマ名 FROM ロール名;
 ```
